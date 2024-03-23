@@ -8,20 +8,18 @@ defaultJson = {
         "game": dafaultDirectory[1],
     },
 }
-defaultDlc = {
-    "dlcs": [
-        "dlc_balkan_w.scs",
-        "dlc_feldbinder.scs",
-        "dlc_krone.scs",
-        "dlc_iberia.scs",
-        "dlc_north.scs",
-        "dlc_balt.scs",
-        "dlc_fr.scs",
-        "dlc_it.scs",
-        "dlc_east.scs",
-        "dlc_balkan_e.scs"
-    ]
-}
+defaultDlc = [
+    "dlc_balkan_w.scs",
+    "dlc_feldbinder.scs",
+    "dlc_krone.scs",
+    "dlc_iberia.scs",
+    "dlc_north.scs",
+    "dlc_balt.scs",
+    "dlc_fr.scs",
+    "dlc_it.scs",
+    "dlc_east.scs",
+    "dlc_balkan_e.scs",
+]
 
 
 def settingLoad() -> Union[dict, Exception]:
@@ -35,16 +33,6 @@ def settingLoad() -> Union[dict, Exception]:
         with open("settings.json", "w") as f:
             dump(defaultJson, f, indent=4)
             return defaultJson
-    except Exception as e:
-        return e
-
-
-def Dlcload() -> Union[dict, Exception]:
-    try:
-        with open("dlc.json", "r") as f:
-            return load(f)
-    except FileNotFoundError:
-        return defaultDlc["dlcs"]
     except Exception as e:
         return e
 

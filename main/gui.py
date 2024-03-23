@@ -1,11 +1,8 @@
 import wx
-from wget import download
 from settings import *
 from filehandle import *
 import wx.adv
-
-
-dlcs = Dlcload()
+from apihandle import *
 
 
 class MyFrame(wx.Frame):
@@ -23,7 +20,7 @@ class MyFrame(wx.Frame):
         self.panel = wx.Panel(self)
         hintText = wx.StaticText(
             self.panel,
-            label="提示:请先将要接的档放在与本程序\n同目录下，不用解压",
+            label="目前不需要登录，直接点安装",
             pos=(50, 20),
         )
         font = wx.Font(16, wx.DEFAULT, wx.NORMAL, wx.NORMAL)
@@ -60,46 +57,91 @@ class MyFrame(wx.Frame):
         File = findZipfile()
         if os.path.exists(GAME_DIR + "changed.json"):
             wx.MessageBox(
-                "请先卸载再安装\n如果卸载没用，请尝试清理"
+                "请先卸载再安装\n如果卸载没用，请尝试清理",
                 "请先卸载",
                 wx.OK | wx.ICON_ERROR,
             )
-        elif File == None:
-            wx.MessageBox(
-                "您确定您把存档放在正确的位置了吗\n你应该放在" + os.getcwd(),
-                "文件不存在",
-                wx.OK | wx.ICON_ERROR,
-            )
         else:
-            processBar = wx.Gauge(self.panel)
-            processBar.SetPosition((50, 100))
-            processContent = wx.StaticText(self.panel)
-            processContent.SetPosition((50, 120))
-            processBar.SetValue(20)
-            processContent.SetLabel("正在解压")
-            configfile = getConfigFile(DOCUMENTS_DIR)
-            with ZipFile(os.path.abspath(".") + "\\" + File, "r") as zip_ref:
-                zip_ref.extractall(DOCUMENTS_DIR)
-            processBar.SetValue(40)
-            processContent.SetLabel("正在隐藏dlc")
-            sig = {"savingPosition": get_recently_modified_folder(DOCUMENTS_DIR)}
-            changedDLC = []
-            for dlc in dlcs:
-                if os.path.exists(GAME_DIR + dlc):
-                    os.rename(GAME_DIR + dlc, GAME_DIR + dlc + ".disabled")
-                    changedDLC.append(GAME_DIR + dlc + ".disabled")
-            sig.update(changedDLC=changedDLC)
-            with open(GAME_DIR + "changed.json", "w") as cre:
-                dump(sig, cre)
-            processBar.SetValue(60)
-            processContent.SetLabel("正在更新游戏配置")
-            if configfile:
-                changeConfigFile(sig["savingPosition"], configfile)
-            processBar.SetValue(80)
-            processContent.SetLabel("正在删除缓存")
-            os.remove(os.path.abspath(".") + "\\" + File)
-            processBar.SetValue(100)
-            processContent.SetLabel("安装完成")
+            activity_info = get_activity()
+            if type(activity_info) != dict:
+                wx.MessageBox(
+                    f"发生错误，详细信息:{activity_info}", "错误", wx.OK | wx.ICON_ERROR
+                )
+            elif activity_info["status"] != "success":
+                wx.MessageBox(
+                    "找不到活动信息，很可能是因为联运组没有上传信息",
+                    "错误",
+                    wx.OK | wx.ICON_ERROR,
+                )
+            elif not compare_to_datetime(
+                (activity_info["startTime"], activity_info["endTime"])
+            ):
+                wx.MessageBox(
+                    f"找到活动\n活动时间:{activity_info['activityStartTime']}\n活动名称:{activity_info['name']}\n活动服务器:{activity_info['server']}\n由于时间未到，暂时不能接档",
+                    "暂不能接档",
+                    wx.OK | wx.ICON_INFORMATION,
+                )
+            else:
+                dlg = wx.MessageDialog(
+                    None,
+                    f"找到活动\n活动时间:{activity_info['activityStartTime']}\n活动名称:{activity_info['name']}\n活动服务器:{activity_info['server']}\n是否要接取存档",
+                    "找到活动",
+                    wx.YES_NO | wx.ICON_QUESTION | wx.CENTRE,
+                )
+                result = dlg.ShowModal()
+                dlg.Destroy()
+                if result == wx.ID_YES:
+                    processBar = wx.Gauge(self.panel)
+                    processBar.SetPosition((50, 100))
+                    processContent = wx.StaticText(self.panel)
+                    processContent.SetPosition((50, 120))
+                    processContent.SetLabel("正在下载存档")
+                    response = get(WEB_URL + "/download_saving/")
+                    if response.status_code != 200:
+                        wx.MessageBox(
+                            f"发生错误，详细信息:{response.content},错误代码{response.status_code}",
+                            "下载错误",
+                            wx.OK | wx.ICON_ERROR,
+                        )
+                    else:
+                        with open("saving.zip", "wb") as fi:
+                            fi.write(response.content)
+                        processBar.SetValue(20)
+                        processContent.SetLabel("正在解压")
+                        configfile = getConfigFile(DOCUMENTS_DIR)
+                        with ZipFile(
+                            os.path.abspath(".") + "\\saving.zip", "r"
+                        ) as zip_ref:
+                            zip_ref.extractall(DOCUMENTS_DIR)
+                        processBar.SetValue(40)
+                        processContent.SetLabel("正在隐藏dlc")
+                        sig = {
+                            "savingPosition": get_recently_modified_folder(
+                                DOCUMENTS_DIR
+                            )
+                        }
+                        changedDLC = []
+                        dlcs = (
+                            activity_info["dlcList"]
+                            if activity_info["dlcList"]
+                            else defaultDlc
+                        )
+                        for dlc in dlcs:
+                            if os.path.exists(GAME_DIR + dlc):
+                                os.rename(GAME_DIR + dlc, GAME_DIR + dlc + ".disabled")
+                                changedDLC.append(GAME_DIR + dlc + ".disabled")
+                        sig.update(changedDLC=changedDLC)
+                        with open(GAME_DIR + "changed.json", "w") as cre:
+                            dump(sig, cre)
+                        processBar.SetValue(60)
+                        processContent.SetLabel("正在更新游戏配置")
+                        if configfile:
+                            changeConfigFile(sig["savingPosition"], configfile)
+                        processBar.SetValue(80)
+                        processContent.SetLabel("正在删除缓存")
+                        os.remove(os.path.abspath(".") + "\\saving.zip")
+                        processBar.SetValue(100)
+                        processContent.SetLabel("安装完成")
 
     def onUnloadButtonClicked(self, event):
         GAME_DIR = self.gamedirText.GetValue()
