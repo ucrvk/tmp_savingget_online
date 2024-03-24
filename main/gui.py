@@ -1,7 +1,6 @@
 import wx
 from settings import *
 from filehandle import *
-import wx.adv
 from apihandle import *
 
 

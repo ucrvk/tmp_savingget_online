@@ -1,3 +1,4 @@
 httpx==0.27.0
 winshell==0.6
 wxPython==4.2.1
+pywin32
